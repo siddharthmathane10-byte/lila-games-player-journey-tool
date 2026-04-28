@@ -6,6 +6,19 @@
 
 ---
 
+## Dashboard Preview
+
+### Journey View
+![Journey View](screenshots/journey%20view%201.png)
+
+### Heatmap Analysis
+![Heatmap](screenshots/heatmap%201.png)
+
+### Replay Demo
+[Lila Games Journey Replay](screenshots/Lila%20games%20journey.mp4)
+
+---
+
 ## Quick Start (no setup required)
 
 ```bash
