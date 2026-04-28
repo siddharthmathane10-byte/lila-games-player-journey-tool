@@ -1,0 +1,1393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LILA BLACK — Player Journey Visualization</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --bg2: #111118;
+    --bg3: #16161f;
+    --border: rgba(255,255,255,0.06);
+    --border2: rgba(255,255,255,0.12);
+    --text: #e8e8f0;
+    --muted: #6b6b80;
+    --accent: #7c6af7;
+    --accent2: #4ecdc4;
+    --kill: #ff4757;
+    --death: #ffa502;
+    --loot: #2ed573;
+    --storm: #a29bfe;
+    --human: #74b9ff;
+    --bot: #fd79a8;
+    --font: 'Syne', sans-serif;
+    --mono: 'JetBrains Mono', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ── SIDEBAR ── */
+  #sidebar {
+    width: 280px;
+    min-width: 280px;
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  #logo {
+    padding: 20px 20px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  #logo .wordmark {
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    color: var(--muted);
+    text-transform: uppercase;
+    font-family: var(--mono);
+  }
+  #logo .title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.2;
+    margin-top: 2px;
+  }
+  #logo .title span { color: var(--accent); }
+
+  .sidebar-section {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-label {
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+    font-family: var(--mono);
+    margin-bottom: 10px;
+  }
+
+  select, input[type=range] {
+    width: 100%;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 13px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    appearance: none;
+    cursor: pointer;
+    margin-bottom: 8px;
+  }
+  select:last-child, input[type=range]:last-child { margin-bottom: 0; }
+  select:focus { outline: none; border-color: var(--accent); }
+
+  /* Toggle pills */
+  .pill-group { display: flex; gap: 6px; flex-wrap: wrap; }
+  .pill {
+    padding: 5px 12px;
+    border-radius: 99px;
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid var(--border2);
+    cursor: pointer;
+    background: transparent;
+    color: var(--muted);
+    transition: all 0.15s;
+    font-family: var(--font);
+    letter-spacing: 0.03em;
+  }
+  .pill.active { color: #fff; border-color: transparent; }
+  .pill-kill.active  { background: var(--kill);  }
+  .pill-death.active { background: var(--death); }
+  .pill-loot.active  { background: var(--loot); color: #0a0a0f; }
+  .pill-storm.active { background: var(--storm); }
+  .pill-path.active  { background: var(--accent); }
+
+  .pill-human.active { background: var(--human); color: #0a0a0f; }
+  .pill-bot.active   { background: var(--bot); color: #0a0a0f; }
+
+  /* Stats panel */
+  #stats { flex: 1; overflow-y: auto; padding: 16px 20px; }
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .stat-card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .stat-card .val {
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--text);
+    font-family: var(--mono);
+  }
+  .stat-card .lbl {
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 3px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* Legend */
+  .legend-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 7px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .legend-line {
+    width: 24px;
+    height: 2px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  /* ── MAIN ── */
+  #main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Topbar */
+  #topbar {
+    height: 52px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+  .tab-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-family: var(--font);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.02em;
+  }
+  .tab-btn.active { background: var(--accent); color: #fff; }
+  .tab-btn:hover:not(.active) { color: var(--text); background: var(--bg3); }
+
+  #match-info {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* Map area */
+  #map-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  #map-canvas {
+    position: absolute;
+    top: 0; left: 0;
+    cursor: crosshair;
+  }
+
+  /* Tooltip */
+  #tooltip {
+    position: absolute;
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: var(--text);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.1s;
+    z-index: 100;
+    font-family: var(--mono);
+    max-width: 220px;
+  }
+  #tooltip .tt-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; color: var(--text); font-family: var(--font); }
+  #tooltip .tt-row { color: var(--muted); margin-top: 2px; }
+  #tooltip .tt-row span { color: var(--text); }
+
+  /* ── TIMELINE ── */
+  #timeline-bar {
+    height: 80px;
+    background: var(--bg2);
+    border-top: 1px solid var(--border);
+    padding: 10px 20px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .tl-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .tl-btn {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+    flex-shrink: 0;
+  }
+  .tl-btn:hover { background: var(--accent); }
+
+  #tl-slider { flex: 1; cursor: pointer; }
+  #tl-time {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text);
+    min-width: 52px;
+    text-align: right;
+  }
+
+  .tl-track {
+    flex: 1;
+    height: 24px;
+    background: var(--bg3);
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Events mini-timeline */
+  #events-track {
+    width: 100%;
+    height: 24px;
+    position: relative;
+    background: var(--bg3);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .evt-tick {
+    position: absolute;
+    top: 4px;
+    width: 3px;
+    height: 16px;
+    border-radius: 2px;
+    opacity: 0.7;
+  }
+
+  /* Heatmap canvas overlay */
+  #heatmap-canvas {
+    position: absolute;
+    top: 0; left: 0;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  /* Mode indicator */
+  #mode-indicator {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  /* Coords */
+  #coords {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    background: var(--bg2);
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
+
+  /* Player list */
+  #player-list {
+    border-top: 1px solid var(--border);
+    padding: 0 20px 12px;
+  }
+  .player-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 0;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+  .player-row:hover { background: var(--bg3); padding-left: 6px; }
+  .player-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .player-name { flex: 1; color: var(--text); font-family: var(--mono); }
+  .player-tag { font-size: 10px; color: var(--muted); }
+  .player-row.selected .player-name { color: var(--accent); }
+
+  /* ── HEATMAP CONTROLS ── */
+  #heatmap-controls {
+    display: none;
+  }
+  #heatmap-controls.visible { display: block; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  /* Loading overlay */
+  #loading {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+    gap: 16px;
+    transition: opacity 0.4s;
+  }
+  #loading .l-title { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; }
+  #loading .l-title span { color: var(--accent); }
+  #loading .l-sub { font-size: 12px; color: var(--muted); font-family: var(--mono); letter-spacing: 0.15em; }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* No path mode */
+  #view-journeys.hidden-view, #view-heatmap.hidden-view { display: none; }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div class="l-title">LILA <span>BLACK</span></div>
+  <div class="l-sub">Generating telemetry · · ·</div>
+</div>
+
+<!-- SIDEBAR -->
+<div id="sidebar">
+  <div id="logo">
+    <div class="wordmark">LILA Games · Internal Tool</div>
+    <div class="title">Player Journey <span>VIZ</span></div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-label">Map</div>
+    <select id="map-select">
+      <option value="0">Ashveld Outpost</option>
+      <option value="1">Crimson Basin</option>
+      <option value="2">Ironhold Station</option>
+    </select>
+
+    <div class="sidebar-label" style="margin-top:10px">Date</div>
+    <select id="date-select"></select>
+
+    <div class="sidebar-label" style="margin-top:10px">Match</div>
+    <select id="match-select"></select>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-label">Event Layers</div>
+    <div class="pill-group">
+      <button class="pill pill-path active" data-layer="path">Paths</button>
+      <button class="pill pill-kill active" data-layer="kill">Kills</button>
+      <button class="pill pill-death active" data-layer="death">Deaths</button>
+      <button class="pill pill-loot active" data-layer="loot">Loot</button>
+      <button class="pill pill-storm active" data-layer="storm">Storm</button>
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-label">Player Type</div>
+    <div class="pill-group">
+      <button class="pill pill-human active" data-ptype="human">Human</button>
+      <button class="pill pill-bot active" data-ptype="bot">Bot</button>
+    </div>
+  </div>
+
+  <div class="sidebar-section" id="heatmap-controls">
+    <div class="sidebar-label">Heatmap Layer</div>
+    <select id="heatmap-type">
+      <option value="kills">Kill Zones</option>
+      <option value="deaths">Death Zones</option>
+      <option value="traffic">Traffic Density</option>
+      <option value="storm">Storm Deaths</option>
+    </select>
+    <div class="sidebar-label" style="margin-top:10px">Intensity</div>
+    <input type="range" id="heat-intensity" min="1" max="5" value="3" step="1">
+  </div>
+
+  <div id="stats">
+    <div class="sidebar-label">Match Stats</div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="val" id="s-players">—</div><div class="lbl">Players</div></div>
+      <div class="stat-card"><div class="val" id="s-kills">—</div><div class="lbl">Kills</div></div>
+      <div class="stat-card"><div class="val" id="s-duration">—</div><div class="lbl">Duration</div></div>
+      <div class="stat-card"><div class="val" id="s-storm">—</div><div class="lbl">Storm Deaths</div></div>
+    </div>
+
+    <div class="sidebar-label" style="margin-top:4px">Legend</div>
+    <div class="legend-row"><div class="legend-line" style="background:var(--human)"></div>Human path</div>
+    <div class="legend-row"><div class="legend-line" style="background:var(--bot); border-style:dashed"></div>Bot path</div>
+    <div class="legend-row"><div class="legend-dot" style="background:var(--kill)"></div>Kill event</div>
+    <div class="legend-row"><div class="legend-dot" style="background:var(--death)"></div>Death event</div>
+    <div class="legend-row"><div class="legend-dot" style="background:var(--loot)"></div>Loot pickup</div>
+    <div class="legend-row"><div class="legend-dot" style="background:var(--storm)"></div>Storm death</div>
+    <div class="legend-row">
+      <svg width="10" height="10"><polygon points="5,0 10,10 0,10" fill="var(--kill)"/></svg>
+      Killer position
+    </div>
+
+    <div class="sidebar-label" style="margin-top:12px">Players in Match</div>
+    <div id="player-list"></div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+  <div id="topbar">
+    <button class="tab-btn active" id="btn-journey">Journey View</button>
+    <button class="tab-btn" id="btn-heatmap">Heatmap</button>
+    <div id="match-info">—</div>
+  </div>
+
+  <div id="map-container">
+    <canvas id="map-canvas"></canvas>
+    <canvas id="heatmap-canvas"></canvas>
+    <div id="tooltip">
+      <div class="tt-title" id="tt-title">Event</div>
+      <div class="tt-row" id="tt-type">—</div>
+      <div class="tt-row" id="tt-player">—</div>
+      <div class="tt-row" id="tt-time">—</div>
+      <div class="tt-row" id="tt-coords">—</div>
+    </div>
+    <div id="mode-indicator">Journey</div>
+    <div id="coords">x:0 y:0</div>
+  </div>
+
+  <div id="timeline-bar">
+    <div class="tl-controls">
+      <button class="tl-btn" id="btn-play">▶</button>
+      <button class="tl-btn" id="btn-step-back">◀◀</button>
+      <button class="tl-btn" id="btn-step-fwd">▶▶</button>
+      <input type="range" id="tl-slider" min="0" max="100" value="100" step="1">
+      <div id="tl-time">0:00</div>
+    </div>
+    <div id="events-track"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  DATA GENERATION — mirrors real LILA BLACK telemetry schema
+//  Schema: player_id, is_bot, team_id, event_type, timestamp,
+//          world_x, world_y, map_id, match_id, date, extra
+// ═══════════════════════════════════════════════════════════════
+
+const MAPS = [
+  { name: 'Ashveld Outpost',   worldMin: -4096, worldMax: 4096, mapColor: '#1a1a2e', zones: ['North Gate','Market Square','The Bunker','Storm Shelter','East Docks'] },
+  { name: 'Crimson Basin',     worldMin: -5120, worldMax: 5120, mapColor: '#1e1010', zones: ['Red Valley','Mine Shaft','Crater Ridge','Supply Cache','Western Cliff'] },
+  { name: 'Ironhold Station',  worldMin: -3072, worldMax: 3072, mapColor: '#0f1a1a', zones: ['Main Terminal','Cargo Bay','Control Tower','Lower Tunnels','Reactor Core'] },
+];
+
+const DATES = ['2025-04-01','2025-04-02','2025-04-03','2025-04-04','2025-04-05'];
+const EVENT_TYPES = ['kill','death','loot','storm_death','move'];
+
+let rng = (() => {
+  let s = 42;
+  return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; };
+})();
+
+function rngRange(a, b) { return a + rng() * (b - a); }
+function rngInt(a, b) { return Math.floor(rngRange(a, b)); }
+
+function generatePlayerNames(n) {
+  const adj = ['Shadow','Void','Crimson','Iron','Ghost','Storm','Neon','Frost','Ember','Silver'];
+  const noun = ['Wolf','Hawk','Viper','Hunter','Blade','Fox','Titan','Reaper','Echo','Raven'];
+  const names = new Set();
+  while (names.size < n) names.add(adj[rngInt(0,10)] + noun[rngInt(0,10)] + rngInt(10,99));
+  return [...names];
+}
+
+function generateMatch(mapId, matchId, date) {
+  const map = MAPS[mapId];
+  const W = map.worldMax - map.worldMin;
+  const matchDuration = rngInt(900, 1800); // seconds
+
+  const playerCount = rngInt(20, 30);
+  const botFraction = rng() * 0.35 + 0.1;
+  const botCount = Math.floor(playerCount * botFraction);
+  const humanCount = playerCount - botCount;
+
+  const names = generatePlayerNames(playerCount);
+  const players = names.map((name, i) => ({
+    id: `p${matchId}_${i}`,
+    name,
+    isBot: i >= humanCount,
+    teamId: rngInt(0, Math.ceil(playerCount / 3)),
+    color: `hsl(${rngInt(0,360)},70%,60%)`,
+    alive: true,
+    deathTime: null,
+  }));
+
+  // POI clusters for realistic movement
+  const poiCount = 5;
+  const pois = Array.from({length: poiCount}, () => ({
+    x: rngRange(map.worldMin * 0.8, map.worldMax * 0.8),
+    y: rngRange(map.worldMin * 0.8, map.worldMax * 0.8),
+    name: map.zones[rngInt(0, map.zones.length)],
+    hotness: rng(),
+  }));
+
+  // Storm shrinks from edge toward center over time
+  const stormCenterX = rngRange(map.worldMin * 0.3, map.worldMax * 0.3);
+  const stormCenterY = rngRange(map.worldMin * 0.3, map.worldMax * 0.3);
+
+  const events = [];
+  const pathPoints = {}; // player_id -> [{t, x, y}]
+
+  players.forEach(p => {
+    // Starting position
+    let px = rngRange(map.worldMin * 0.9, map.worldMax * 0.9);
+    let py = rngRange(map.worldMin * 0.9, map.worldMax * 0.9);
+
+    pathPoints[p.id] = [];
+    let alive = true;
+    let deathTime = matchDuration + 1;
+
+    // Randomly assign a target POI
+    let targetPoi = pois[rngInt(0, poiCount)];
+    let poiDwell = 0;
+
+    for (let t = 0; t < matchDuration; t += rngInt(15, 45)) {
+      if (!alive) break;
+
+      // Storm pressure
+      const stormRadius = W * 0.5 * (1 - t / matchDuration) + W * 0.05;
+      const distToCenter = Math.hypot(px - stormCenterX, py - stormCenterY);
+      const inStorm = distToCenter > stormRadius;
+
+      // Move toward POI or storm center
+      const dx = (inStorm ? stormCenterX : targetPoi.x) - px;
+      const dy = (inStorm ? stormCenterY : targetPoi.y) - py;
+      const d = Math.hypot(dx, dy) || 1;
+      const speed = rngRange(40, 120) * (p.isBot ? 1.2 : 1);
+      px += (dx / d) * speed * rngRange(0.5, 1.5) + rngRange(-30, 30);
+      py += (dy / d) * speed * rngRange(0.5, 1.5) + rngRange(-30, 30);
+
+      // Clamp
+      px = Math.max(map.worldMin, Math.min(map.worldMax, px));
+      py = Math.max(map.worldMin, Math.min(map.worldMax, py));
+
+      pathPoints[p.id].push({ t, x: Math.round(px), y: Math.round(py) });
+
+      // Events
+      // Loot
+      if (rng() < 0.04) {
+        events.push({ type: 'loot', playerId: p.id, t, x: Math.round(px), y: Math.round(py), isBot: p.isBot, name: p.name, extra: { item: ['Shield Cell','Medkit','Ammo','Armor','Grenade'][rngInt(0,5)] }});
+      }
+
+      // Kill attempt
+      if (rng() < 0.025 && !p.isBot && t > 120) {
+        // Find nearby alive enemy
+        const victim = players.find(pp => pp.id !== p.id && pp.alive && pp.teamId !== p.teamId && rng() < 0.3);
+        if (victim) {
+          const weaponList = ['R-301','Wingman','R-99','Kraber','Devotion','Longbow','Spitfire'];
+          events.push({ type: 'kill', playerId: p.id, t, x: Math.round(px), y: Math.round(py), isBot: p.isBot, name: p.name, extra: { victim: victim.name, weapon: weaponList[rngInt(0,weaponList.length)] }});
+          events.push({ type: 'death', playerId: victim.id, t, x: Math.round(px + rngRange(-20,20)), y: Math.round(py + rngRange(-20,20)), isBot: victim.isBot, name: victim.name, extra: { killer: p.name }});
+          victim.alive = false;
+          victim.deathTime = t;
+        }
+      }
+
+      // Storm death
+      if (inStorm && rng() < 0.08) {
+        events.push({ type: 'storm_death', playerId: p.id, t, x: Math.round(px), y: Math.round(py), isBot: p.isBot, name: p.name, extra: { stormDamage: rngInt(20,100) }});
+        alive = false;
+        p.alive = false;
+        p.deathTime = t;
+        break;
+      }
+
+      // Switch POI
+      poiDwell++;
+      if (poiDwell > 3 || rng() < 0.15) {
+        targetPoi = pois[rngInt(0, poiCount)];
+        poiDwell = 0;
+      }
+    }
+    p.alive = alive;
+  });
+
+  // Sort events by time
+  events.sort((a, b) => a.t - b.t);
+
+  return { mapId, matchId, date, players, events, pathPoints, matchDuration, pois, stormCenter: { x: stormCenterX, y: stormCenterY }, worldMin: map.worldMin, worldMax: map.worldMax };
+}
+
+// Pre-generate all matches
+const ALL_MATCHES = [];
+let mId = 0;
+DATES.forEach(date => {
+  [0, 1, 2].forEach(mapId => {
+    const matchesPerMapDay = rngInt(3, 6);
+    for (let m = 0; m < matchesPerMapDay; m++) {
+      ALL_MATCHES.push(generateMatch(mapId, mId++, date));
+    }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════════
+
+const state = {
+  mapId: 0,
+  date: DATES[0],
+  matchIdx: 0,
+  match: null,
+  timePercent: 100,
+  playing: false,
+  playInterval: null,
+  view: 'journey', // 'journey' | 'heatmap'
+  layers: { path: true, kill: true, death: true, loot: true, storm: true },
+  playerTypes: { human: true, bot: true },
+  heatmapType: 'kills',
+  heatIntensity: 3,
+  selectedPlayer: null,
+  hoveredEvent: null,
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  DOM REFS
+// ═══════════════════════════════════════════════════════════════
+
+const mapCanvas = document.getElementById('map-canvas');
+const ctx = mapCanvas.getContext('2d');
+const heatCanvas = document.getElementById('heatmap-canvas');
+const hctx = heatCanvas.getContext('2d');
+const container = document.getElementById('map-container');
+const tooltip = document.getElementById('tooltip');
+const tlSlider = document.getElementById('tl-slider');
+const tlTime = document.getElementById('tl-time');
+const eventsTrack = document.getElementById('events-track');
+const playerList = document.getElementById('player-list');
+const modeIndicator = document.getElementById('mode-indicator');
+const heatmapControls = document.getElementById('heatmap-controls');
+const coordsDiv = document.getElementById('coords');
+
+// ═══════════════════════════════════════════════════════════════
+//  COORD MAPPING
+//  world → canvas: linear map from [worldMin,worldMax] → [pad, W-pad]
+// ═══════════════════════════════════════════════════════════════
+
+const PAD = 40;
+
+function worldToCanvas(wx, wy) {
+  const m = state.match;
+  if (!m) return { cx: 0, cy: 0 };
+  const w = mapCanvas.width, h = mapCanvas.height;
+  const range = m.worldMax - m.worldMin;
+  const cx = PAD + ((wx - m.worldMin) / range) * (w - 2 * PAD);
+  const cy = PAD + ((wy - m.worldMin) / range) * (h - 2 * PAD);
+  return { cx, cy };
+}
+
+function canvasToWorld(cx, cy) {
+  const m = state.match;
+  if (!m) return { wx: 0, wy: 0 };
+  const w = mapCanvas.width, h = mapCanvas.height;
+  const range = m.worldMax - m.worldMin;
+  const wx = m.worldMin + ((cx - PAD) / (w - 2 * PAD)) * range;
+  const wy = m.worldMin + ((cy - PAD) / (h - 2 * PAD)) * range;
+  return { wx: Math.round(wx), wy: Math.round(wy) };
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  CANVAS SIZING
+// ═══════════════════════════════════════════════════════════════
+
+function resizeCanvases() {
+  const rect = container.getBoundingClientRect();
+  mapCanvas.width = rect.width;
+  mapCanvas.height = rect.height;
+  heatCanvas.width = rect.width;
+  heatCanvas.height = rect.height;
+  draw();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MAP BACKGROUND — procedural for each map
+// ═══════════════════════════════════════════════════════════════
+
+function drawMapBackground() {
+  const m = state.match;
+  const map = MAPS[m.mapId];
+  const w = mapCanvas.width, h = mapCanvas.height;
+
+  // Base
+  ctx.fillStyle = map.mapColor;
+  ctx.fillRect(0, 0, w, h);
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 1;
+  const gridSteps = 8;
+  for (let i = 0; i <= gridSteps; i++) {
+    const x = PAD + ((w - 2 * PAD) / gridSteps) * i;
+    const y = PAD + ((h - 2 * PAD) / gridSteps) * i;
+    ctx.beginPath(); ctx.moveTo(x, PAD); ctx.lineTo(x, h - PAD); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(w - PAD, y); ctx.stroke();
+  }
+
+  // Zone labels
+  ctx.font = '500 11px Syne, sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  ctx.textAlign = 'center';
+  m.pois.forEach(poi => {
+    const { cx, cy } = worldToCanvas(poi.x, poi.y);
+    // Zone blob
+    ctx.beginPath();
+    const r = 40 + poi.hotness * 30;
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.025)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    // Label
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.fillText(poi.name, cx, cy + r + 14);
+  });
+
+  // Storm circle
+  const tCurrent = (state.timePercent / 100) * m.matchDuration;
+  const W = m.worldMax - m.worldMin;
+  const stormRadius = W * 0.5 * (1 - tCurrent / m.matchDuration) + W * 0.05;
+  const sc = worldToCanvas(m.stormCenter.x, m.stormCenter.y);
+  const scaleX = (w - 2 * PAD) / (m.worldMax - m.worldMin);
+  const stormR = stormRadius * scaleX;
+
+  ctx.beginPath();
+  ctx.arc(sc.cx, sc.cy, stormR, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(162,155,254,0.4)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([8, 4]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Storm fill outside
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, w, h);
+  ctx.arc(sc.cx, sc.cy, stormR, 0, Math.PI * 2, true);
+  ctx.fillStyle = 'rgba(100,80,200,0.06)';
+  ctx.fill();
+  ctx.restore();
+
+  // Border
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(PAD, PAD, w - 2 * PAD, h - 2 * PAD);
+
+  // Map name
+  ctx.font = '700 13px Syne, sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.textAlign = 'left';
+  ctx.fillText(map.name.toUpperCase(), PAD + 8, PAD + 20);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  DRAW JOURNEY PATHS
+// ═══════════════════════════════════════════════════════════════
+
+function drawPaths() {
+  const m = state.match;
+  const tCurrent = (state.timePercent / 100) * m.matchDuration;
+
+  m.players.forEach(p => {
+    if (p.isBot && !state.playerTypes.bot) return;
+    if (!p.isBot && !state.playerTypes.human) return;
+
+    const pts = m.pathPoints[p.id].filter(pt => pt.t <= tCurrent);
+    if (!state.layers.path || pts.length < 2) return;
+
+    const isSelected = state.selectedPlayer === p.id;
+    const alpha = isSelected ? 1 : (state.selectedPlayer ? 0.15 : (p.isBot ? 0.4 : 0.65));
+
+    ctx.beginPath();
+    ctx.strokeStyle = p.isBot
+      ? `rgba(253,121,168,${alpha})`
+      : `rgba(116,185,255,${alpha})`;
+    ctx.lineWidth = isSelected ? 2.5 : (p.isBot ? 1 : 1.5);
+    if (p.isBot) ctx.setLineDash([4, 4]);
+    else ctx.setLineDash([]);
+
+    const first = pts[0];
+    const { cx: x0, cy: y0 } = worldToCanvas(first.x, first.y);
+    ctx.moveTo(x0, y0);
+    pts.slice(1).forEach(pt => {
+      const { cx, cy } = worldToCanvas(pt.x, pt.y);
+      ctx.lineTo(cx, cy);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Current position dot
+    if (pts.length > 0) {
+      const last = pts[pts.length - 1];
+      const { cx, cy } = worldToCanvas(last.x, last.y);
+      ctx.beginPath();
+      ctx.arc(cx, cy, isSelected ? 6 : 4, 0, Math.PI * 2);
+      ctx.fillStyle = p.isBot ? '#fd79a8' : '#74b9ff';
+      ctx.fill();
+      if (isSelected) {
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        // Name label
+        ctx.font = '600 11px Syne, sans-serif';
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.fillText(p.name, cx, cy - 10);
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  DRAW EVENTS
+// ═══════════════════════════════════════════════════════════════
+
+function drawEvents() {
+  const m = state.match;
+  const tCurrent = (state.timePercent / 100) * m.matchDuration;
+
+  const visibleEvents = m.events.filter(e => {
+    if (e.t > tCurrent) return false;
+    if (e.isBot && !state.playerTypes.bot) return false;
+    if (!e.isBot && !state.playerTypes.human) return false;
+    if (e.type === 'kill' && !state.layers.kill) return false;
+    if (e.type === 'death' && !state.layers.death) return false;
+    if (e.type === 'loot' && !state.layers.loot) return false;
+    if (e.type === 'storm_death' && !state.layers.storm) return false;
+    if (e.type === 'move') return false;
+    return true;
+  });
+
+  visibleEvents.forEach(e => {
+    const { cx, cy } = worldToCanvas(e.x, e.y);
+    const age = tCurrent - e.t;
+    const fadeIn = Math.min(1, age / 60);
+    const r = 5;
+
+    ctx.save();
+    ctx.globalAlpha = fadeIn * (state.selectedPlayer && state.selectedPlayer !== e.playerId ? 0.2 : 0.9);
+
+    if (e.type === 'kill') {
+      // Triangle
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - r);
+      ctx.lineTo(cx + r, cy + r);
+      ctx.lineTo(cx - r, cy + r);
+      ctx.closePath();
+      ctx.fillStyle = '#ff4757';
+      ctx.fill();
+    } else if (e.type === 'death') {
+      // X
+      ctx.strokeStyle = '#ffa502';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(cx - r, cy - r); ctx.lineTo(cx + r, cy + r); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx + r, cy - r); ctx.lineTo(cx - r, cy + r); ctx.stroke();
+    } else if (e.type === 'loot') {
+      // Diamond
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - r);
+      ctx.lineTo(cx + r, cy);
+      ctx.lineTo(cx, cy + r);
+      ctx.lineTo(cx - r, cy);
+      ctx.closePath();
+      ctx.fillStyle = '#2ed573';
+      ctx.fill();
+    } else if (e.type === 'storm_death') {
+      // Hexagon-ish circle with stroke
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = '#a29bfe';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+    ctx.restore();
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  HEATMAP
+// ═══════════════════════════════════════════════════════════════
+
+function drawHeatmap() {
+  const m = state.match;
+  const w = heatCanvas.width, h = heatCanvas.height;
+  hctx.clearRect(0, 0, w, h);
+
+  if (state.view !== 'heatmap') {
+    heatCanvas.style.opacity = '0';
+    return;
+  }
+  heatCanvas.style.opacity = '1';
+
+  // Gather points
+  let points = [];
+  if (state.heatmapType === 'kills') {
+    points = m.events.filter(e => e.type === 'kill').map(e => worldToCanvas(e.x, e.y));
+  } else if (state.heatmapType === 'deaths') {
+    points = m.events.filter(e => e.type === 'death' || e.type === 'storm_death').map(e => worldToCanvas(e.x, e.y));
+  } else if (state.heatmapType === 'traffic') {
+    Object.values(m.pathPoints).forEach(pts => pts.forEach(pt => points.push(worldToCanvas(pt.x, pt.y))));
+  } else if (state.heatmapType === 'storm') {
+    points = m.events.filter(e => e.type === 'storm_death').map(e => worldToCanvas(e.x, e.y));
+  }
+
+  const radius = 40 + state.heatIntensity * 12;
+
+  // Custom heatmap via radial gradients
+  const offCanvas = document.createElement('canvas');
+  offCanvas.width = w; offCanvas.height = h;
+  const octx = offCanvas.getContext('2d');
+
+  points.forEach(({ cx, cy }) => {
+    const grad = octx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+    grad.addColorStop(0, 'rgba(255,255,255,0.25)');
+    grad.addColorStop(0.5, 'rgba(255,255,255,0.08)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    octx.fillStyle = grad;
+    octx.beginPath();
+    octx.arc(cx, cy, radius, 0, Math.PI * 2);
+    octx.fill();
+  });
+
+  // Colorize
+  const imageData = octx.getImageData(0, 0, w, h);
+  const data = imageData.data;
+  const out = hctx.createImageData(w, h);
+
+  for (let i = 0; i < data.length; i += 4) {
+    const alpha = data[i]; // We used white, so R channel = intensity
+    if (alpha < 5) { out.data[i+3] = 0; continue; }
+    const t = alpha / 255;
+    // Color ramp: cold→warm (blue→cyan→yellow→red)
+    let r, g, b;
+    if (t < 0.25) { const f = t / 0.25; r = 0; g = Math.round(f * 120); b = 180; }
+    else if (t < 0.5) { const f = (t - 0.25) / 0.25; r = 0; g = 120 + Math.round(f * 135); b = 180 - Math.round(f * 180); }
+    else if (t < 0.75) { const f = (t - 0.5) / 0.25; r = Math.round(f * 255); g = 255; b = 0; }
+    else { const f = (t - 0.75) / 0.25; r = 255; g = 255 - Math.round(f * 200); b = 0; }
+    out.data[i] = r;
+    out.data[i+1] = g;
+    out.data[i+2] = b;
+    out.data[i+3] = Math.round(t * 200);
+  }
+  hctx.putImageData(out, 0, 0);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MAIN DRAW
+// ═══════════════════════════════════════════════════════════════
+
+function draw() {
+  if (!state.match) return;
+  ctx.clearRect(0, 0, mapCanvas.width, mapCanvas.height);
+  drawMapBackground();
+  if (state.view === 'journey') {
+    drawPaths();
+    drawEvents();
+  }
+  drawHeatmap();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  STATS UPDATE
+// ═══════════════════════════════════════════════════════════════
+
+function updateStats() {
+  const m = state.match;
+  if (!m) return;
+  const tCurrent = (state.timePercent / 100) * m.matchDuration;
+
+  const kills = m.events.filter(e => e.type === 'kill' && e.t <= tCurrent).length;
+  const storm = m.events.filter(e => e.type === 'storm_death' && e.t <= tCurrent).length;
+  const dur = Math.floor(tCurrent);
+  const mins = Math.floor(dur / 60);
+  const secs = dur % 60;
+
+  document.getElementById('s-players').textContent = m.players.length;
+  document.getElementById('s-kills').textContent = kills;
+  document.getElementById('s-duration').textContent = `${mins}:${String(secs).padStart(2,'0')}`;
+  document.getElementById('s-storm').textContent = storm;
+
+  document.getElementById('match-info').textContent =
+    `${MAPS[m.mapId].name} · ${m.date} · Match #${m.matchId + 1}`;
+
+  // Timeline time display
+  tlTime.textContent = `${mins}:${String(secs).padStart(2,'0')}`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  PLAYER LIST
+// ═══════════════════════════════════════════════════════════════
+
+function updatePlayerList() {
+  const m = state.match;
+  if (!m) return;
+  const tCurrent = (state.timePercent / 100) * m.matchDuration;
+
+  playerList.innerHTML = '';
+  const displayed = m.players.slice(0, 12); // Show first 12
+  displayed.forEach(p => {
+    if (p.isBot && !state.playerTypes.bot) return;
+    if (!p.isBot && !state.playerTypes.human) return;
+
+    const alive = !p.deathTime || p.deathTime > tCurrent;
+    const row = document.createElement('div');
+    row.className = 'player-row' + (state.selectedPlayer === p.id ? ' selected' : '');
+    row.innerHTML = `
+      <div class="player-dot" style="background:${p.isBot ? 'var(--bot)' : 'var(--human)'}; opacity:${alive ? 1 : 0.35}"></div>
+      <div class="player-name" style="opacity:${alive ? 1 : 0.4}">${p.name}</div>
+      <div class="player-tag">${p.isBot ? 'BOT' : ''}</div>
+    `;
+    row.addEventListener('click', () => {
+      state.selectedPlayer = state.selectedPlayer === p.id ? null : p.id;
+      updatePlayerList();
+      draw();
+    });
+    playerList.appendChild(row);
+  });
+  if (m.players.length > 12) {
+    const more = document.createElement('div');
+    more.style.cssText = 'font-size:11px;color:var(--muted);padding:4px 0;font-family:var(--mono)';
+    more.textContent = `+ ${m.players.length - 12} more`;
+    playerList.appendChild(more);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  EVENTS MINI-TIMELINE
+// ═══════════════════════════════════════════════════════════════
+
+function renderEventsTrack() {
+  const m = state.match;
+  if (!m) return;
+  eventsTrack.innerHTML = '';
+  const w = eventsTrack.offsetWidth || 600;
+
+  m.events.forEach(e => {
+    if (e.type === 'move') return;
+    const pct = e.t / m.matchDuration;
+    const tick = document.createElement('div');
+    tick.className = 'evt-tick';
+    tick.style.left = (pct * 100) + '%';
+    tick.style.background = {
+      kill: 'var(--kill)',
+      death: 'var(--death)',
+      loot: 'var(--loot)',
+      storm_death: 'var(--storm)',
+    }[e.type] || '#fff';
+    eventsTrack.appendChild(tick);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  LOAD MATCH
+// ═══════════════════════════════════════════════════════════════
+
+function loadMatch() {
+  const filtered = ALL_MATCHES.filter(m => m.mapId === state.mapId && m.date === state.date);
+  state.match = filtered[Math.min(state.matchIdx, filtered.length - 1)] || ALL_MATCHES[0];
+  state.selectedPlayer = null;
+  state.timePercent = 100;
+  tlSlider.value = 100;
+  updateStats();
+  updatePlayerList();
+  renderEventsTrack();
+  draw();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  POPULATE SELECTS
+// ═══════════════════════════════════════════════════════════════
+
+function populateDateSelect() {
+  const sel = document.getElementById('date-select');
+  sel.innerHTML = '';
+  DATES.forEach(d => {
+    const o = document.createElement('option');
+    o.value = d;
+    o.textContent = d;
+    sel.appendChild(o);
+  });
+}
+
+function populateMatchSelect() {
+  const sel = document.getElementById('match-select');
+  sel.innerHTML = '';
+  const filtered = ALL_MATCHES.filter(m => m.mapId === state.mapId && m.date === state.date);
+  filtered.forEach((m, i) => {
+    const o = document.createElement('option');
+    o.value = i;
+    o.textContent = `Match ${i + 1} (${m.players.length} players)`;
+    sel.appendChild(o);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TOOLTIP / HOVER
+// ═══════════════════════════════════════════════════════════════
+
+mapCanvas.addEventListener('mousemove', e => {
+  const rect = mapCanvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const { wx, wy } = canvasToWorld(mx, my);
+  coordsDiv.textContent = `x:${wx} y:${wy}`;
+
+  // Check if near an event
+  const m = state.match;
+  if (!m) return;
+  const tCurrent = (state.timePercent / 100) * m.matchDuration;
+  const SNAP = 12;
+
+  let closest = null, closestDist = Infinity;
+  m.events.filter(ev => ev.t <= tCurrent && ev.type !== 'move').forEach(ev => {
+    const { cx, cy } = worldToCanvas(ev.x, ev.y);
+    const d = Math.hypot(mx - cx, my - cy);
+    if (d < SNAP && d < closestDist) { closest = ev; closestDist = d; }
+  });
+
+  if (closest) {
+    const typeLabel = { kill: '⚡ Kill', death: '💀 Death', loot: '📦 Loot', storm_death: '🌀 Storm Death' }[closest.type] || closest.type;
+    document.getElementById('tt-title').textContent = typeLabel;
+    document.getElementById('tt-player').innerHTML = `Player: <span>${closest.name}</span> ${closest.isBot ? '[BOT]' : ''}`;
+    const mins = Math.floor(closest.t / 60), secs = Math.floor(closest.t % 60);
+    document.getElementById('tt-time').innerHTML = `Time: <span>${mins}:${String(secs).padStart(2,'0')}</span>`;
+    document.getElementById('tt-coords').innerHTML = `World: <span>${closest.x}, ${closest.y}</span>`;
+
+    let extra = '';
+    if (closest.extra?.victim) document.getElementById('tt-type').innerHTML = `Killed: <span>${closest.extra.victim}</span>`;
+    else if (closest.extra?.killer) document.getElementById('tt-type').innerHTML = `By: <span>${closest.extra.killer}</span>`;
+    else if (closest.extra?.item) document.getElementById('tt-type').innerHTML = `Item: <span>${closest.extra.item}</span>`;
+    else if (closest.extra?.stormDamage) document.getElementById('tt-type').innerHTML = `Damage: <span>${closest.extra.stormDamage}</span>`;
+    else document.getElementById('tt-type').innerHTML = '';
+
+    tooltip.style.opacity = '1';
+    const tx = Math.min(e.clientX - rect.left + 12, mapCanvas.width - 230);
+    const ty = Math.max(e.clientY - rect.top - 80, 8);
+    tooltip.style.left = tx + 'px';
+    tooltip.style.top = ty + 'px';
+  } else {
+    tooltip.style.opacity = '0';
+  }
+});
+
+mapCanvas.addEventListener('mouseleave', () => {
+  tooltip.style.opacity = '0';
+  coordsDiv.textContent = 'x:0 y:0';
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  TIMELINE PLAYBACK
+// ═══════════════════════════════════════════════════════════════
+
+tlSlider.addEventListener('input', () => {
+  state.timePercent = parseInt(tlSlider.value);
+  updateStats();
+  updatePlayerList();
+  draw();
+});
+
+document.getElementById('btn-play').addEventListener('click', () => {
+  if (state.playing) {
+    clearInterval(state.playInterval);
+    state.playing = false;
+    document.getElementById('btn-play').textContent = '▶';
+  } else {
+    if (state.timePercent >= 100) { state.timePercent = 0; tlSlider.value = 0; }
+    state.playing = true;
+    document.getElementById('btn-play').textContent = '⏸';
+    state.playInterval = setInterval(() => {
+      state.timePercent = Math.min(100, state.timePercent + 0.5);
+      tlSlider.value = state.timePercent;
+      updateStats();
+      updatePlayerList();
+      draw();
+      if (state.timePercent >= 100) {
+        clearInterval(state.playInterval);
+        state.playing = false;
+        document.getElementById('btn-play').textContent = '▶';
+      }
+    }, 60);
+  }
+});
+
+document.getElementById('btn-step-back').addEventListener('click', () => {
+  state.timePercent = Math.max(0, state.timePercent - 5);
+  tlSlider.value = state.timePercent;
+  updateStats(); updatePlayerList(); draw();
+});
+document.getElementById('btn-step-fwd').addEventListener('click', () => {
+  state.timePercent = Math.min(100, state.timePercent + 5);
+  tlSlider.value = state.timePercent;
+  updateStats(); updatePlayerList(); draw();
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  FILTER CONTROLS
+// ═══════════════════════════════════════════════════════════════
+
+document.getElementById('map-select').addEventListener('change', e => {
+  state.mapId = parseInt(e.target.value);
+  populateMatchSelect();
+  state.matchIdx = 0;
+  loadMatch();
+});
+
+document.getElementById('date-select').addEventListener('change', e => {
+  state.date = e.target.value;
+  populateMatchSelect();
+  state.matchIdx = 0;
+  loadMatch();
+});
+
+document.getElementById('match-select').addEventListener('change', e => {
+  state.matchIdx = parseInt(e.target.value);
+  loadMatch();
+});
+
+document.querySelectorAll('.pill[data-layer]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const layer = btn.dataset.layer;
+    state.layers[layer] = !state.layers[layer];
+    btn.classList.toggle('active', state.layers[layer]);
+    draw();
+  });
+});
+
+document.querySelectorAll('.pill[data-ptype]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const pt = btn.dataset.ptype;
+    state.playerTypes[pt] = !state.playerTypes[pt];
+    btn.classList.toggle('active', state.playerTypes[pt]);
+    updatePlayerList();
+    draw();
+  });
+});
+
+document.getElementById('heatmap-type').addEventListener('change', e => {
+  state.heatmapType = e.target.value;
+  drawHeatmap();
+});
+document.getElementById('heat-intensity').addEventListener('input', e => {
+  state.heatIntensity = parseInt(e.target.value);
+  drawHeatmap();
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  VIEW TABS
+// ═══════════════════════════════════════════════════════════════
+
+document.getElementById('btn-journey').addEventListener('click', () => {
+  state.view = 'journey';
+  document.getElementById('btn-journey').classList.add('active');
+  document.getElementById('btn-heatmap').classList.remove('active');
+  heatmapControls.classList.remove('visible');
+  modeIndicator.textContent = 'Journey';
+  draw();
+});
+
+document.getElementById('btn-heatmap').addEventListener('click', () => {
+  state.view = 'heatmap';
+  document.getElementById('btn-heatmap').classList.add('active');
+  document.getElementById('btn-journey').classList.remove('active');
+  heatmapControls.classList.add('visible');
+  modeIndicator.textContent = 'Heatmap';
+  draw();
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  RESIZE
+// ═══════════════════════════════════════════════════════════════
+
+const resizeObserver = new ResizeObserver(() => resizeCanvases());
+resizeObserver.observe(container);
+
+// ═══════════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════════
+
+setTimeout(() => {
+  populateDateSelect();
+  populateMatchSelect();
+  loadMatch();
+  resizeCanvases();
+  document.getElementById('loading').style.opacity = '0';
+  setTimeout(() => document.getElementById('loading').style.display = 'none', 400);
+}, 800);
+</script>
+</body>
+</html>
